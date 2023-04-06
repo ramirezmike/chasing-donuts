@@ -7,6 +7,7 @@ pub fn follow_player(
 ) {
     for mut camera_transform in cameras.iter_mut() {
         for player_transform in players.iter() {
+            camera_transform.translation.y = player_transform.translation.y + 0.25;
             camera_transform.translation.x = player_transform.translation.x - 1.8;
         }
     }

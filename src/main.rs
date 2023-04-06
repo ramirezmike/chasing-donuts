@@ -9,6 +9,7 @@ use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 mod player;
+mod floor;
 mod game_camera;
 mod direction;
 
@@ -29,6 +30,7 @@ fn main() {
 //      .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugin(RapierDebugRenderPlugin::default())
+        .add_plugin(floor::FloorPlugin)
         .add_state::<AppState>()
         .add_plugin(player::PlayerPlugin)
         .add_startup_system(window_settings)
@@ -88,28 +90,39 @@ fn setup(
     let cube = meshes.add(Mesh::from(shape::Cube { size: 0.1 }));
     for x in 0..100 {
         for z in -10..10 {
-            commands.spawn((PbrBundle {
-                mesh: cube.clone(),
-                material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
-                transform: {
-                    let mut t = Transform::from_xyz(x as f32 * 0.1, 0.0, z as f32 * 0.1);
-                    t.scale.y = random_number() * 0.1;
-                    t
-                },
-                ..default()
-            },
-            RigidBody::Fixed,
-            Collider::cuboid(0.1, 0.1, 0.1)
-            ));
+
+//  for x in 0..1 {
+//      for z in -1..1 {
+            commands.spawn((
+            TransformBundle::from(Transform::from_xyz(x as f32 * 0.1, 0.0, z as f32 * 0.1)),
+            floor::Floor { height: 0.1 },
+            ComputedVisibility::default(),
+            Visibility::Visible,
+//          RigidBody::Fixed,
+//          Collider::cuboid(0.1, 0.1, 0.1)
+            )).with_children(|parent| {
+                parent.spawn((
+                    PbrBundle {
+                        mesh: cube.clone(),
+                        material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
+                        ..default()
+                    }
+                        ,));
+            });
         }
     }
 
     commands
         .spawn((
-           Restitution::coefficient(0.2),
-           RigidBody::Dynamic,
+            RigidBody::KinematicPositionBased,
+            Collider::cuboid(0.25, 0.25, 0.25),
+            KinematicCharacterController {
+                translation: Some(Vec3::new(0.0, 0.5, 0.0)),
+                offset: CharacterLength::Absolute(0.01),
+                ..default()
+            },
            Velocity::default(),
-        LockedAxes::ROTATION_LOCKED_X | LockedAxes::ROTATION_LOCKED_Z | LockedAxes::ROTATION_LOCKED_Y,
+//        LockedAxes::ROTATION_LOCKED_X | LockedAxes::ROTATION_LOCKED_Z | LockedAxes::ROTATION_LOCKED_Y,
         player::PlayerBundle::new(),
         PbrBundle {
             mesh: meshes.add(Mesh::from(shape::Cube { size: 0.5 })),

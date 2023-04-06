@@ -32,6 +32,7 @@ pub struct Player {
     pub speed: f32,
     pub rotation_speed: f32,
     pub friction: f32,
+    pub velocity: Vec3,
     pub random: f32,
     pub state: PlayerState,
 }
@@ -41,9 +42,10 @@ impl Player {
         let mut rng = rand::thread_rng();
 
         Player {
-            speed: 40.0,
+            speed: 20.0,
             rotation_speed: 1.0,
-            friction: 0.10,
+            friction: 0.1,
+            velocity: Vec3::ZERO,
             random: rng.gen_range(0.5..1.0),
             state: PlayerState::Normal,
         }
@@ -173,7 +175,7 @@ fn handle_input(
 
 pub fn move_player(
     time: Res<Time>,
-    mut players: Query<(Entity, &mut Transform, &mut Player, &mut Velocity), Without<Camera3d>>,
+    mut players: Query<(Entity, &mut KinematicCharacterController, &mut Transform, &mut Player, &mut Velocity), Without<Camera3d>>,
     mut player_move_event_reader: EventReader<PlayerMoveEvent>,
 //    mut animations: Query<&mut AnimationPlayer>,
 //    game_assets: ResMut<GameAssets>,
@@ -183,35 +185,36 @@ pub fn move_player(
         move_events.entry(move_event.entity).or_insert(move_event);
     }
 
-    for (entity, mut transform, mut player, mut velocity) in players.iter_mut() {
+    for (entity, mut controller, mut transform, mut player, _) in players.iter_mut() {
         let speed: f32 = player.speed;
         let rotation_speed: f32 = player.rotation_speed;
         let friction: f32 = player.friction;
+        let gravity: Vec3 = 1.0 * Vec3::new(0.0, -1.0, 0.0);
 
-        velocity.linvel *= friction.powf(time.delta_seconds());
+        player.velocity *= friction.powf(time.delta_seconds());
         if let Some(move_event) = move_events.get(&entity) {
             match move_event.movement {
                 Movement::Normal(direction) => {
                     let acceleration = Vec3::from(direction);
-                    velocity.linvel += (acceleration.zero_signum() * speed) * time.delta_seconds();
+                    player.velocity += (acceleration.zero_signum() * speed) * time.delta_seconds();
                 }
                 _ => ()
             }
         }
 
-        velocity.linvel = velocity.linvel.clamp_length_max(speed);
+        player.velocity = player.velocity.clamp_length_max(speed);
 
 //      player.velocity.z *= if player.velocity.x > 0.0 { 1.0 } else { 0.0 };
 //      player.velocity.y *= if player.velocity.x > 0.0 { 1.0 } else { 0.0 };
 //      game_state.driving_speed = player.velocity.x * 0.1;
 
-        let mut new_translation = transform.translation + (velocity.linvel * time.delta_seconds());
+        let new_translation = (gravity + player.velocity) * time.delta_seconds();
 
         let angle = (-(new_translation.z - transform.translation.z))
             .atan2(new_translation.x - transform.translation.x);
         let rotation = Quat::from_axis_angle(Vec3::Y, angle);
 //       velocity.angvel = rotation.to_scaled_axis();
-//        transform.translation = new_translation;
+        controller.translation = Some(new_translation);
 //        velocity.linvel = player.velocity * time.delta_seconds();
 
 //        transform.translation.x = 0.0; // hardcoding for now
@@ -221,7 +224,7 @@ pub fn move_player(
             .lerp(Quat::from_axis_angle(Vec3::Y, TAU * 0.75), time.delta_seconds() * rotation_speed);
 
         // don't rotate if we're not moving or if rotation isnt a number
-        if !rotation.is_nan() && velocity.linvel.length() > 1.0 {
+        if !rotation.is_nan() && player.velocity.length() > 1.0 {
             transform.rotation = rotation;
         }
     }
