@@ -1,0 +1,21 @@
+[package]
+name = "runner"
+authors = ["Michael Ramirez<ramirezmike2@gmail.com>"]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR  Apache-2.0"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+
+[dependencies]
+bevy = { version = "0.10.1" }
+bevy_kira_audio = "0.15"
+bevy_rapier3d = { version = "0.21", features = ["debug-render"] }
+leafwing-input-manager = { version = "0.9" }
+rand = "0.8"
+bevy-inspector-egui = { git = "https://github.com/jakobhellermann/bevy-inspector-egui" }
