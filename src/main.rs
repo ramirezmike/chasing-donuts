@@ -90,33 +90,9 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut floor_manager: ResMut<floor::FloorManager>,
 ) {
-    let cube = meshes.add(Mesh::from(shape::Cube { size: 0.1 }));
-    for x in 0..100 {
-        for z in -10..10 {
-
-//  for x in 0..1 {
-//      for z in -1..1 {
-            commands.spawn((
-            TransformBundle::from(Transform::from_xyz(x as f32 * 0.1, 0.0, z as f32 * 0.1)),
-            floor::Floor { height: 0.1 },
-            ComputedVisibility::default(),
-            Visibility::Visible,
-            CleanupMarker,
-//          RigidBody::Fixed,
-//          Collider::cuboid(0.1, 0.1, 0.1)
-            )).with_children(|parent| {
-                parent.spawn((
-                    PbrBundle {
-                        mesh: cube.clone(),
-                        material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
-                        ..default()
-                    }
-                        ,));
-            });
-        }
-    }
-
+    floor::spawn_floor(&mut commands, &mut meshes, &mut materials, &mut floor_manager);
     commands
         .spawn((
             RigidBody::KinematicPositionBased,
@@ -140,21 +116,24 @@ fn setup(
         }
     ));
         
-
-    commands.spawn((PointLightBundle {
-        point_light: PointLight {
-            intensity: 1500.0,
-            shadows_enabled: true,
-            ..default()
-        },
-        transform: Transform::from_xyz(4.0, 8.0, 4.0),
-        ..default()
-    },CleanupMarker) );
-
     commands.spawn((Camera3dBundle {
         transform: Transform::from_xyz(-1.8, 1.0, 0.0).looking_at(Vec3::new(8.0, 0.0, 0.0), Vec3::Y),
         ..default()
-    }, CleanupMarker));
+    }, CleanupMarker,
+    ComputedVisibility::default(),
+    Visibility::Visible,
+    ))
+    .with_children(|parent| {
+        parent.spawn((PointLightBundle {
+            point_light: PointLight {
+                intensity: 1500.0,
+                shadows_enabled: true,
+                ..default()
+            },
+            transform: Transform::from_xyz(4.0, 8.0, 4.0),
+            ..default()
+        },CleanupMarker) );
+    });
 }
 
 

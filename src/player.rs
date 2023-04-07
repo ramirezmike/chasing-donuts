@@ -163,6 +163,12 @@ fn handle_input(
         //println!("T: {:?}", transform.translation);
         let mut direction = direction::Direction::NEUTRAL;
 
+        if action_state.just_pressed(PlayerAction::Action) {
+            player_move_event_writer.send(PlayerMoveEvent {
+                entity,
+                movement: Movement::Jump,
+            });
+        }
         for input_direction in PlayerAction::DIRECTIONS {
             if action_state.pressed(input_direction) {
                 direction += input_direction.direction();
@@ -176,12 +182,6 @@ fn handle_input(
             });
         }
 
-        if action_state.just_pressed(PlayerAction::Action) {
-            player_move_event_writer.send(PlayerMoveEvent {
-                entity,
-                movement: Movement::Jump,
-            });
-        }
     }
 }
 
