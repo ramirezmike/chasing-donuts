@@ -7,8 +7,8 @@ use crate::{
     ZeroSignum,
 };
 
-
-static FLOOR_CUBE_SIZE:f32 = 0.1;
+static FLOOR_CUBE_SIZE: f32 = 0.1;
+static GROUND_SPEED: f32 = 1.0;
 
 pub struct FloorPlugin;
 impl Plugin for FloorPlugin {
@@ -37,24 +37,29 @@ fn update_floors(
 ) {
     for (entity, mut floor, transform, children) in &mut floors {
         for p in &players {
-            if (transform.translation - p.translation).length() > 1.0 {
-                commands.entity(entity)
-                        .remove::<RigidBody>()
-                        .remove::<Collider>();
-               floor.height += 0.01;
-               for child_entity in children {
-                   if let Ok(mut child_transform) = transforms.get_mut(*child_entity) {
-                       child_transform.scale.y = floor.height;
+            let player_translation = Vec3::new(p.translation.x, 0.0, p.translation.z);
+            let floor_translation = Vec3::new(transform.translation.x, 0.0, transform.translation.z);
+            let distance = (floor_translation - player_translation).length();
+            if distance < 1.0 {
+
+               let half_size = FLOOR_CUBE_SIZE / 2.0;
+               commands.entity(entity)
+                   .insert((RigidBody::Fixed,Collider::cuboid(half_size, half_size * floor.height, half_size)));
+
+               if distance < 0.5 {
+                   floor.height += GROUND_SPEED * time.delta_seconds();
+                   for child_entity in children {
+                       if let Ok(mut child_transform) = transforms.get_mut(*child_entity) {
+                           child_transform.scale.y = floor.height;
+                       }
                    }
                }
             } else {
-                let half_size = FLOOR_CUBE_SIZE / 2.0;
                 commands.entity(entity)
-                    .insert((RigidBody::Fixed,Collider::cuboid(half_size, half_size * floor.height, half_size)));
+                        .remove::<RigidBody>()
+                        .remove::<Collider>();
+
             }
         }
-       // transform.scale.y += 0.01;
-//          RigidBody::Fixed,
-//          Collider::cuboid(0.1, 0.1, 0.1)
     }
 }
