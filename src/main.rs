@@ -34,7 +34,7 @@ fn main() {
         .add_state::<AppState>()
         .add_plugin(player::PlayerPlugin)
         .add_startup_system(window_settings)
-        .add_startup_system(setup)
+        .add_system(setup.in_schedule(OnEnter(AppState::InGame)))
         .add_system(debug)
         .add_systems((
             game_camera::follow_player,
@@ -82,6 +82,10 @@ fn random_number() -> f32 {
     x * 2.0 - 1.0
 }
 
+
+#[derive(Component, Default)]
+struct CleanupMarker;
+
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -98,6 +102,7 @@ fn setup(
             floor::Floor { height: 0.1 },
             ComputedVisibility::default(),
             Visibility::Visible,
+            CleanupMarker,
 //          RigidBody::Fixed,
 //          Collider::cuboid(0.1, 0.1, 0.1)
             )).with_children(|parent| {
@@ -116,9 +121,12 @@ fn setup(
         .spawn((
             RigidBody::KinematicPositionBased,
             Collider::cuboid(0.25, 0.25, 0.25),
+            CleanupMarker,
+            ColliderMassProperties::Density(2.0),
             KinematicCharacterController {
                 translation: Some(Vec3::new(0.0, 0.5, 0.0)),
                 offset: CharacterLength::Absolute(0.01),
+                apply_impulse_to_dynamic_bodies: true,
                 ..default()
             },
            Velocity::default(),
@@ -133,7 +141,7 @@ fn setup(
     ));
         
 
-    commands.spawn(PointLightBundle {
+    commands.spawn((PointLightBundle {
         point_light: PointLight {
             intensity: 1500.0,
             shadows_enabled: true,
@@ -141,12 +149,12 @@ fn setup(
         },
         transform: Transform::from_xyz(4.0, 8.0, 4.0),
         ..default()
-    });
+    },CleanupMarker) );
 
-    commands.spawn(Camera3dBundle {
+    commands.spawn((Camera3dBundle {
         transform: Transform::from_xyz(-1.8, 1.0, 0.0).looking_at(Vec3::new(8.0, 0.0, 0.0), Vec3::Y),
         ..default()
-    });
+    }, CleanupMarker));
 }
 
 
@@ -161,6 +169,15 @@ fn debug(
         exit.send(AppExit);
     }
 
+    if keys.just_pressed(KeyCode::R) {
+    }
 }
 
-
+pub fn cleanup<T: Component>(mut commands: Commands, entities: Query<Entity, With<T>>) {
+    println!("Running Cleanup");
+    for entity in entities.iter() {
+        print!(".");
+        commands.get_or_spawn(entity).despawn_recursive();
+    }
+    println!("Done Cleanup");
+}
