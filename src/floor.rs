@@ -6,119 +6,207 @@ use crate::{
     AppState,
     ZeroSignum,
     CleanupMarker,
+    random_number,
+    FLOOR_COLOR,
 };
+use std::collections::{HashMap, VecDeque};
 
-static FLOOR_CUBE_SIZE: f32 = 0.1;
-static GROUND_SPEED: f32 = 5.0;
-static NUMBER_OF_ROWS: i32 = 100;
+static FLOOR_CUBE_SIZE: f32 = 0.3;
+static GROUND_SPEED: f32 = 20.0;
+static NUMBER_OF_LIVE_ROWS: i32 = 100;
+static NUMBER_OF_ROWS: i32 = 200;
 static NUMBER_OF_COLUMNS: i32 = 30;
+static DISTANCE_INCREASE: f32 = 0.5;
 
 pub struct FloorPlugin;
 impl Plugin for FloorPlugin {
     fn build(&self, app: &mut App) {
         app
-            .init_resource::<FloorManager>()
-            .add_systems((
-                    update_floors,
-                    shift_floors
-                )
-                .in_set(OnUpdate(AppState::InGame))
-            );
+            .init_resource::<FloorManager>();
     }
 }
 
 #[derive(Default, Resource)]
 pub struct FloorManager {
-    track_distance: f32
+    track_distance: i32,
+    floor_rows: VecDeque::<FloorRow>,
+    lowest: f32,
+    cube_mesh: Handle<Mesh>,
 }
 
-pub fn spawn_floor(
+#[derive(Default)]
+pub struct FloorRow {
+    blocks: VecDeque::<Floor>,
+}
+
+#[derive(Component, Reflect, Default, Clone, Copy)]
+#[reflect(Component)]
+pub struct Floor {
+    pub height: f32,
+    pub row_id: usize,
+    pub z: f32,
+    pub color: Color,
+}
+
+
+pub fn setup_floor(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     floor_manager: &mut ResMut<FloorManager>,
 ) { 
-    let cube = meshes.add(Mesh::from(shape::Cube { size: 0.1 }));
+    **floor_manager = FloorManager::default();
     let columns = NUMBER_OF_COLUMNS / 2;
+    floor_manager.cube_mesh = meshes.add(Mesh::from(shape::Cube { size: FLOOR_CUBE_SIZE }));
+    floor_manager.lowest = 2.0; 
 
-    floor_manager.track_distance = NUMBER_OF_ROWS as f32 * FLOOR_CUBE_SIZE;
-    for x in 0..NUMBER_OF_ROWS {
+    let mut row_id: usize = 0;
+    for _ in 0..NUMBER_OF_ROWS {
+        let mut floor_row = FloorRow::default();
         for z in -columns..columns {
+            let c = Color::hex(FLOOR_COLOR).unwrap();// * Vec3::new(color_x, color_x, color_x);
 
-//  for x in 0..1 {
-//      for z in -1..1 {
-            commands.spawn((
-            TransformBundle::from(Transform::from_xyz(x as f32 * FLOOR_CUBE_SIZE, 0.0, z as f32 * FLOOR_CUBE_SIZE)),
-            Floor { height: FLOOR_CUBE_SIZE },
-            ComputedVisibility::default(),
-            Visibility::Visible,
-            CleanupMarker,
-//          RigidBody::Fixed,
-//          Collider::cuboid(0.1, 0.1, 0.1)
-            )).with_children(|parent| {
-                parent.spawn((
-                    PbrBundle {
-                        mesh: cube.clone(),
-                        material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
-                        ..default()
-                    }
-                        ,));
+            floor_row.blocks.push_front( Floor { 
+                height: 2.0, 
+                z: z as f32, 
+                row_id, 
+                color: c 
             });
         }
+
+        row_id += 1;
+        floor_manager.floor_rows.push_front(floor_row);
     }
+
+    spawn_floors(commands, meshes, materials, NUMBER_OF_LIVE_ROWS, floor_manager);
 }
 
-#[derive(Component, Reflect, Default)]
-#[reflect(Component)]
-pub struct Floor {
-    pub height: f32,
-}
-
-fn update_floors(
+pub fn update_floors(
     mut commands: Commands,
     time: Res<Time>,
     mut floors: Query<(Entity, &mut Floor, &Transform, &Children)>,
-    players: Query<&Transform, (With<player::Player>, Without<Floor>)>,
+    players: Query<(&Transform, &Velocity), (With<player::Player>, Without<Floor>)>,
     mut transforms: Query<&mut Transform, (Without<player::Player>, Without<Floor>)>,
 ) {
     for (entity, mut floor, transform, children) in &mut floors {
-        for p in &players {
+        for (p, p_velocity) in &players {
             let player_translation = Vec3::new(p.translation.x, 0.0, p.translation.z);
             let floor_translation = Vec3::new(transform.translation.x, 0.0, transform.translation.z);
             let distance = (floor_translation - player_translation).length();
-            if distance > 1.0 || floor_translation.x < player_translation.x {
+            if distance > 1.0 || floor_translation.x <= player_translation.x {
                 commands.entity(entity)
                         .remove::<RigidBody>()
                         .remove::<Collider>();
-            } else {
+            } 
+            if distance <= 1.0 && floor_translation.x > player_translation.x {
                let half_size = FLOOR_CUBE_SIZE / 2.0;
                commands.entity(entity)
                    .insert((RigidBody::Fixed,Collider::cuboid(half_size, half_size * floor.height, half_size)));
+            }
 
-               if distance < 0.5 {
-                   floor.height += GROUND_SPEED * time.delta_seconds();
-                   for child_entity in children {
-                       if let Ok(mut child_transform) = transforms.get_mut(*child_entity) {
-                           child_transform.scale.y = floor.height;
-                       }
-                   }
-               }
+            if distance < 0.5 && floor_translation.x < (player_translation.x - (FLOOR_CUBE_SIZE / 2.0)) {
+                floor.height += (GROUND_SPEED ) * time.delta_seconds();
+
+                for child_entity in children {
+                    if let Ok(mut child_transform) = transforms.get_mut(*child_entity) {
+                        child_transform.scale.y = floor.height;
+                    }
+                }
             }
         }
     }
 }
 
-fn shift_floors(
+pub fn shift_floors(
     mut commands: Commands,
-    mut floors: Query<(Entity, &Floor, &mut Transform)>,
-    cameras: Query<&Transform, (With<Camera3d>, Without<Floor>)>,
+    mut floors: Query<(Entity, &Floor, &Transform)>,
+    cameras: Query<&Transform, With<Camera3d>>,
     mut floor_manager: ResMut<FloorManager>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    for (entity, floor, mut transform) in &mut floors {
+    let mut rows = HashMap::<usize, Vec::<Floor>>::new();
+    for (entity, floor, transform) in &mut floors {
         for camera in &cameras {
             if transform.translation.x < camera.translation.x {
-                transform.translation.x += floor_manager.track_distance;
+                let floor = floor.clone();
+                rows.entry(floor.row_id).and_modify(|r| r.push(floor)).or_insert(vec!(floor));
+                commands.entity(entity).despawn_recursive();
             }
         }
     }
+
+    if !rows.is_empty() {
+        let number_of_rows_to_add = rows.len() as i32;
+        // does this need to be sorted?
+        for (_, mut floors) in rows.drain() {
+            floors.sort_by(|a, b| a.z.partial_cmp(&b.z).unwrap());
+            let row = FloorRow {
+                blocks: floors.into()
+            };
+
+            floor_manager.floor_rows.push_back(row);
+        }
+
+        spawn_floors(&mut commands, &mut meshes, &mut materials, number_of_rows_to_add, &mut floor_manager);
+    }
+}
+
+fn spawn_floors(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    number_of_rows_to_spawn: i32,
+    floor_manager: &mut FloorManager,
+) {
+    for x in floor_manager.track_distance..(floor_manager.track_distance + number_of_rows_to_spawn) {
+        if let Some(mut floor_row) = floor_manager.floor_rows.pop_front() {
+            // reset the lowest when we run into the first row
+            if let Some(front) = floor_row.blocks.front() {
+                if front.row_id == 0 {
+                    floor_manager.lowest = f32::MAX;
+                }
+            }
+
+            while let Some(mut block) = floor_row.blocks.pop_front() {
+//                block.height *= 1.0 + DISTANCE_INCREASE;
+//              floor_manager.lowest = floor_manager.lowest.min(block.height);
+
+//              println!("{} {}", block.height, floor_manager.lowest);
+//              if block.height < floor_manager.lowest {
+//                  // skipping because it's too low
+//                  continue;
+//              }
+                
+                let color_x = random_number();//* block.height;
+                block.color.set_g(block.color.g() - (color_x * 0.1));
+                block.color.set_r(block.color.r() - (color_x * 0.1));
+                block.color.set_b(block.color.b() - (color_x * 0.1));
+                commands.spawn((
+                TransformBundle::from(Transform::from_xyz(x as f32 * FLOOR_CUBE_SIZE, 0.0, block.z as f32 * FLOOR_CUBE_SIZE)),
+                block,
+                ComputedVisibility::default(),
+                Visibility::Visible,
+                CleanupMarker,
+    //          RigidBody::Fixed,
+    //          Collider::cuboid(0.1, 0.1, 0.1)
+                )).with_children(|parent| {
+                    parent.spawn((
+                        PbrBundle {
+                            mesh: floor_manager.cube_mesh.clone_weak(),
+                            material: materials.add(StandardMaterial {
+                                base_color: block.color.into(),
+                                unlit: false,
+                                ..default()
+                            }),
+                            transform: Transform::from_scale(Vec3::new(1.0, block.height , 1.0)),
+                            ..default()
+                        }
+                    ,));
+                });
+            }
+        }
+    }
+
+    floor_manager.track_distance += number_of_rows_to_spawn;
 }

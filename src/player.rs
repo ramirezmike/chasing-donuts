@@ -16,13 +16,7 @@ pub struct PlayerPlugin;
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(InputManagerPlugin::<PlayerAction>::default())
-            .add_event::<PlayerMoveEvent>()
-            .add_systems((
-                    handle_input, 
-                    move_player.after(handle_input)
-                )
-                .in_set(OnUpdate(AppState::InGame))
-            );
+            .add_event::<PlayerMoveEvent>();
     }
 }
 
@@ -121,14 +115,14 @@ impl PlayerBundle {
         input_map.set_gamepad(Gamepad { id: 0 });
 
         // Movement
-        input_map.insert(KeyCode::Up, Up);
-        input_map.insert(KeyCode::W, Up);
-        input_map.insert(KeyCode::Z, Up);
-        input_map.insert(GamepadButtonType::DPadUp, Up);
+//      input_map.insert(KeyCode::Up, Up);
+//      input_map.insert(KeyCode::W, Up);
+//      input_map.insert(KeyCode::Z, Up);
+//      input_map.insert(GamepadButtonType::DPadUp, Up);
 
-        input_map.insert(KeyCode::Down, Down);
-        input_map.insert(KeyCode::S, Down);
-        input_map.insert(GamepadButtonType::DPadDown, Down);
+//      input_map.insert(KeyCode::Down, Down);
+//      input_map.insert(KeyCode::S, Down);
+//      input_map.insert(GamepadButtonType::DPadDown, Down);
 
         input_map.insert(KeyCode::Left, Left);
         input_map.insert(KeyCode::A, Left);
@@ -154,7 +148,7 @@ pub struct PlayerMoveEvent {
     pub movement: Movement,
 }
 
-fn handle_input(
+pub fn handle_input(
     mut app_state: ResMut<State<AppState>>,
     mut players: Query<(Entity, &ActionState<PlayerAction>, &Transform, &mut Player, &mut Velocity)>,
     mut player_move_event_writer: EventWriter<PlayerMoveEvent>,
@@ -201,19 +195,24 @@ pub fn move_player(
         let speed: f32 = player.speed;
         let rotation_speed: f32 = player.rotation_speed;
         let friction: f32 = player.friction;
-        let mut gravity: Vec3 = 1.0 * Vec3::new(0.0, -1.0, 0.0);
+        let mut gravity: Vec3 = 3.0 * Vec3::new(0.0, -1.0, 0.0);
 
         player.velocity *= friction.powf(time.delta_seconds());
+        player.velocity += (Vec3::X * speed) * time.delta_seconds();
+
         if let Some(move_event) = move_events.get(&entity) {
             match move_event.movement {
                 Movement::Normal(direction) => {
-                    let acceleration = Vec3::from(direction);
-                    player.velocity += (acceleration.zero_signum() * speed) * time.delta_seconds();
+                    let mut acceleration = Vec3::from(direction).zero_signum();
+                    if !controller_output.grounded {
+                        acceleration.z *= 0.5;
+                    }
+                    player.velocity += (acceleration * speed) * time.delta_seconds();
                 },
                 Movement::Jump => {
                     if controller_output.grounded {
                         println!("JUMP");
-                        player.velocity += Vec3::new(0.0, 100.0, 0.0) * time.delta_seconds();
+                        player.velocity += Vec3::new(0.0, 300.0, 0.0) * time.delta_seconds();
                         gravity = Vec3::ZERO;
                     }
                 },
