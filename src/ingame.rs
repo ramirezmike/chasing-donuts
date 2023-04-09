@@ -25,6 +25,11 @@ impl Plugin for InGamePlugin {
                 )
                 .in_set(OnUpdate(AppState::Reset))
             )
+            .add_systems((
+                    cleanup::<CleanupMarker>,
+                )
+                .in_schedule(OnEnter(AppState::Reset))
+            )
             .add_system(setup.in_schedule(OnEnter(AppState::InGame)))
             .add_systems((
                     food::spawn_food,
@@ -51,6 +56,8 @@ pub fn load(
 ) {
     assets_handler.add_font(&mut game_assets.font, "fonts/monogram.ttf");
     assets_handler.add_audio(&mut game_assets.collect, "audio/collect.wav");
+    assets_handler.add_audio(&mut game_assets.jump, "audio/jump.wav");
+    assets_handler.add_audio(&mut game_assets.game_over, "audio/game_over.wav");
 }
 
 fn setup(
@@ -119,5 +126,9 @@ fn setup(
 
 
 fn reset_level(
+    mut game_assets: ResMut<assets::GameAssets>,
+    mut assets_handler: asset_loading::AssetsHandler,
 ) {
+    println!("Resetting");
+    assets_handler.load(AppState::InGame, &mut game_assets);
 }

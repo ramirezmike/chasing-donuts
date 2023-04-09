@@ -17,6 +17,8 @@ pub struct GameAssets {
     pub TJ: Handle<Gltf>,
 
     pub blip: Handle<AudioSource>,
+    pub game_over: Handle<AudioSource>,
+    pub jump: Handle<AudioSource>,
     pub collect: Handle<AudioSource>,
     pub collect_sfx: Handle<AudioSource>,
     pub level_bgm: Handle<AudioSource>,

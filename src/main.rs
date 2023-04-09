@@ -16,6 +16,7 @@ mod floor;
 mod food;
 mod game_camera;
 mod direction;
+mod game_over;
 mod ingame;
 mod ingame_ui;
 mod menus;
@@ -36,10 +37,10 @@ fn main() {
           ..default()
         }))
         .add_state::<AppState>()
-        .add_plugin(WorldInspectorPlugin::new())
+//        .add_plugin(WorldInspectorPlugin::new())
         .insert_resource(bevy_egui::EguiSettings { scale_factor: 1.8, ..default() })
-        .add_plugin(LogDiagnosticsPlugin::default())
-        .add_plugin(FrameTimeDiagnosticsPlugin::default())
+//      .add_plugin(LogDiagnosticsPlugin::default())
+//      .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
 //        .add_plugin(RapierDebugRenderPlugin::default())
         .add_plugin(floor::FloorPlugin)
@@ -47,6 +48,7 @@ fn main() {
         .add_plugin(audio::GameAudioPlugin)
         .add_plugin(ingame_ui::InGameUIPlugin)
         .add_plugin(player::PlayerPlugin)
+        .add_plugin(game_over::GameOverPlugin)
         .add_plugin(asset_loading::AssetLoadingPlugin)
         .add_plugin(title_screen::TitlePlugin)
         .add_plugin(splash::SplashPlugin)
@@ -66,6 +68,7 @@ pub enum AppState {
     Loading,
     Splash,
     TitleScreen,
+    GameOver,
     Reset,
     InGame,
 }
@@ -79,8 +82,8 @@ fn bootstrap(
     audio.set_volume();
     clear_color.0 = Color::hex("aaaaaa").unwrap();
 
-    //assets_handler.load(AppState::Splash, &mut game_assets);
-    assets_handler.load(AppState::InGame, &mut game_assets);
+    assets_handler.load(AppState::Splash, &mut game_assets);
+    //assets_handler.load(AppState::InGame, &mut game_assets);
 }
 
 pub trait ZeroSignum {

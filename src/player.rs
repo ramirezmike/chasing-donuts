@@ -1,7 +1,10 @@
 use crate::{
     direction,
-    AppState,
+    AppState,assets,
     ZeroSignum,
+    floor,
+    audio,
+    game_over,
 };
 use bevy::prelude::*;
 use rand::Rng;
@@ -29,6 +32,8 @@ pub struct Player {
     pub velocity: Vec3,
     pub random: f32,
     pub state: PlayerState,
+    pub death_timer: Option<f32>,
+    pub donut_count: usize,
 }
 
 impl Player {
@@ -42,6 +47,8 @@ impl Player {
             velocity: Vec3::ZERO,
             random: rng.gen_range(0.5..1.0),
             state: PlayerState::Normal,
+            death_timer: None,
+            donut_count: 0,
         }
     }
 }
@@ -183,15 +190,36 @@ pub fn move_player(
     time: Res<Time>,
     mut players: Query<(Entity, &mut KinematicCharacterController, &KinematicCharacterControllerOutput, &mut Transform, &mut Player, &mut Velocity), Without<Camera3d>>,
     mut player_move_event_reader: EventReader<PlayerMoveEvent>,
-//    mut animations: Query<&mut AnimationPlayer>,
-//    game_assets: ResMut<GameAssets>,
+    mut game_over_event_writer: EventWriter<game_over::GameOverEvent>,
+    floor_manager: Res<floor::FloorManager>,
+    game_assets: Res<assets::GameAssets>,
+    mut audio: audio::GameAudio,
 ) {
     let mut move_events = HashMap::new();
     for move_event in player_move_event_reader.iter() {
         move_events.entry(move_event.entity).or_insert(move_event);
     }
 
-    for (entity, mut controller, controller_output, mut transform, mut player, _) in players.iter_mut() {
+    for (entity, mut controller, controller_output, mut transform, mut player, p_velocity) in players.iter_mut() {
+
+        if p_velocity.linvel.x < player.speed * 0.1 {
+            let current_death_time = player.death_timer.unwrap_or(3.0) - time.delta_seconds();
+
+            if current_death_time < 0.0 {
+                game_over_event_writer.send(game_over::GameOverEvent);
+            } else {
+                player.death_timer = Some(current_death_time);
+            }
+        } else {
+            player.death_timer = None;
+        }
+
+        let (lowest, _) = floor_manager.current_level_heights(); 
+        if transform.translation.y < lowest - 1.0 {
+            println!(" {} {}", transform.translation.y, lowest);
+            game_over_event_writer.send(game_over::GameOverEvent);
+        }
+
         let speed: f32 = player.speed;
         let rotation_speed: f32 = player.rotation_speed;
         let friction: f32 = player.friction;
@@ -212,6 +240,7 @@ pub fn move_player(
                 Movement::Jump => {
                     if controller_output.grounded {
                         println!("JUMP");
+                        audio.play_sfx(&game_assets.jump);
                         player.velocity += Vec3::new(0.0, 300.0, 0.0) * time.delta_seconds();
                         gravity = Vec3::ZERO;
                     }

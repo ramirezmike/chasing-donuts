@@ -21,12 +21,12 @@ pub fn update_food(
     mut commands: Commands,
     mut foods: Query<(Entity, &Food, &mut Transform), Without<player::Player>>,
     mut floor_manager: ResMut<floor::FloorManager>,
-    player: Query<&Transform, With<player::Player>>,
+    mut player: Query<(&mut player::Player, &Transform)>,
     time: Res<Time>,
     mut audio: audio::GameAudio,
     game_assets: Res<assets::GameAssets>,
 ) {
-    for p in &player {
+    for (mut player, p) in &mut player {
         for (entity, _, mut food_transform) in &mut foods {
             food_transform.rotate_y(time.delta_seconds() * 1.2);
             food_transform.scale = Vec3::splat(1.0 + (time.elapsed_seconds().sin().abs() * 0.2));
@@ -34,6 +34,7 @@ pub fn update_food(
             if p.translation.distance(food_transform.translation) < 1.0 {
                 audio.play_sfx(&game_assets.collect);
                 floor_manager.score += 10;
+                player.donut_count += 1;
                 commands.entity(entity).despawn_recursive();
             }
         }

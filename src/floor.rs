@@ -17,7 +17,7 @@ static GROUND_SPEED: f32 = 20.0;
 static NUMBER_OF_LIVE_ROWS: i32 = 100;
 static NUMBER_OF_ROWS: i32 = 200;
 static NUMBER_OF_COLUMNS: i32 = 30;
-static DISTANCE_INCREASE: f32 = 0.1;
+static DISTANCE_INCREASE: f32 = 2.1;
 
 
 pub struct FloorPlugin;

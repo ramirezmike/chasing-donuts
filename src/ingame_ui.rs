@@ -1,5 +1,5 @@
 use crate::{
-    assets::GameAssets, menus, AppState, ui::text_size, ingame, floor,CleanupMarker,
+    assets::GameAssets, menus, AppState, ui::text_size, ingame, floor,CleanupMarker, player,
 };
 use bevy::prelude::*;
 
@@ -7,17 +7,46 @@ pub struct InGameUIPlugin;
 impl Plugin for InGameUIPlugin {
     fn build(&self, app: &mut App) {
         app.add_system(setup.in_schedule(OnEnter(AppState::InGame)))
+//           .add_system(update_game_over_ui.in_set(OnUpdate(AppState::GameOver)))
            .add_system(update_ui.in_set(OnUpdate(AppState::InGame)));
+    }
+}
+
+fn update_game_over_ui(
+    floor_manager: Res<floor::FloorManager>,
+    game_assets: Res<GameAssets>,
+    mut score_indicators: Query<&mut Text, (With<ScoreIndicator>, Without<DeathIndicator>)>,
+    mut death_indicators: Query<&mut Text, (With<DeathIndicator>, Without<ScoreIndicator>)>,
+    player: Query<&player::Player>,
+) {
+    for mut score in &mut score_indicators {
+        score.sections[0].value = format!("");
+    }
+
+    for mut death in &mut death_indicators {
+        death.sections[0].value = format!("");
     }
 }
 
 fn update_ui(
     floor_manager: Res<floor::FloorManager>,
     game_assets: Res<GameAssets>,
-    mut score_indicators: Query<&mut Text, With<ScoreIndicator>>,
+    mut score_indicators: Query<&mut Text, (With<ScoreIndicator>, Without<DeathIndicator>)>,
+    mut death_indicators: Query<&mut Text, (With<DeathIndicator>, Without<ScoreIndicator>)>,
+    player: Query<&player::Player>,
 ) {
     for mut score in &mut score_indicators {
         score.sections[0].value = format!("{}", floor_manager.score);
+    }
+
+    for p in &player {
+        for mut death in &mut death_indicators {
+            if let Some(death_timer) = p.death_timer {
+                death.sections[0].value = format!("{:.2}", death_timer);
+            } else {
+                death.sections[0].value = format!("");
+            }
+        }
     }
 }
 
@@ -77,12 +106,42 @@ fn setup(
                         vec!(ScoreIndicator), // just an empty vec since can't do <impl Trait>
                     );
                 });
+
+            parent
+                .spawn(NodeBundle {
+                    style: Style {
+                        size: Size::new(Val::Percent(100.0), Val::Percent(80.0)),
+                        position_type: PositionType::Absolute,
+                        justify_content: JustifyContent::Center,
+                        margin: UiRect {
+                            left: Val::Auto,
+                            right: Val::Auto,
+                            ..default()
+                        },
+                        align_items: AlignItems::Center,
+                        flex_direction: FlexDirection::Row,
+                        ..Default::default()
+                    },
+                    background_color: Color::NONE.into(),
+                    ..Default::default()
+                })
+                .with_children(|parent| {
+                    add_title(
+                        parent,
+                        game_assets.font.clone(),
+                        text_scaler.scale(menus::DEFAULT_FONT_SIZE * 1.6),
+                        "",
+                        vec!(DeathIndicator), // just an empty vec since can't do <impl Trait>
+                    );
+                });
         });
 }
 
 
 #[derive(Component)]
 struct ScoreIndicator;
+#[derive(Component)]
+struct DeathIndicator;
 
 pub fn add_title(
     builder: &mut ChildBuilder<'_, '_, '_>,

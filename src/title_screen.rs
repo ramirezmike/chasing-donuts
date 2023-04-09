@@ -1,5 +1,5 @@
 use crate::{
-    asset_loading, assets::GameAssets, audio::GameAudio, cleanup, menus, floor, 
+    asset_loading, assets::GameAssets, audio::GameAudio, cleanup, menus, floor, player,
     ui::text_size, AppState, menus::HOVERED_BUTTON, menus::NORMAL_BUTTON, assets,
 };
 use bevy::app::AppExit;
@@ -89,7 +89,6 @@ fn setup(
     mut clear_color: ResMut<ClearColor>,
     text_scaler: text_size::TextScaler,
 ) {
-    println!("Setting up camera");
     commands
         .spawn(InputManagerBundle {
             input_map: MenuAction::default_input_map(),
@@ -273,10 +272,10 @@ fn update_menu_buttons(
     mut floor_manager: ResMut<floor::FloorManager>,
     time: Res<Time>,
 ) {
-    if floor_manager.title_screen_cooldown < 1.0 {
-        floor_manager.title_screen_cooldown -= time.delta_seconds();
-        return; 
-    }
+//  if floor_manager.title_screen_cooldown < 1.0 {
+//      floor_manager.title_screen_cooldown -= time.delta_seconds();
+//      return; 
+//  }
 
     let action_state = action_state.single();
     let number_of_buttons = buttons.iter().count();
@@ -307,8 +306,8 @@ fn update_menu_buttons(
         }
     }
 
-    if pressed_button || true {
-        if *selected_button == 0  || true {
+    if pressed_button {
+        if *selected_button == 0 {
             audio.play_sfx(&game_assets.blip);
             assets_handler.load(AppState::InGame, &mut game_assets);
         }
