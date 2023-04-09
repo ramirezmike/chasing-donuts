@@ -5,6 +5,10 @@ use crate::{
     player,
     game_camera,
     floor,
+    asset_loading,
+    assets,BACKGROUND_COLOR,
+PLAYER_COLOR,
+    food,
     AppState,
     ZeroSignum,
     cleanup,
@@ -21,6 +25,13 @@ impl Plugin for InGamePlugin {
                 )
                 .in_set(OnUpdate(AppState::Reset))
             )
+            .add_system(setup.in_schedule(OnEnter(AppState::InGame)))
+            .add_systems((
+                    food::spawn_food,
+                    food::update_food,
+                )
+                .in_set(OnUpdate(AppState::InGame))
+            )
             .add_systems((
                     player::handle_input, 
                     player::move_player,
@@ -33,6 +44,79 @@ impl Plugin for InGamePlugin {
             );
     }
 }
+
+pub fn load(
+    assets_handler: &mut asset_loading::AssetsHandler,
+    game_assets: &mut ResMut<assets::GameAssets>,
+) {
+    assets_handler.add_font(&mut game_assets.font, "fonts/monogram.ttf");
+    assets_handler.add_audio(&mut game_assets.collect, "audio/collect.wav");
+}
+
+fn setup(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut floor_manager: ResMut<floor::FloorManager>,
+    mut clear_color: ResMut<ClearColor>,
+    mut food_spawn_event_writer: EventWriter<food::SpawnFoodEvent>,
+) {
+    clear_color.0 = Color::hex(BACKGROUND_COLOR).unwrap();
+    floor::setup_floor(&mut commands, &mut meshes, &mut materials, &mut floor_manager, &mut food_spawn_event_writer);
+    commands
+        .spawn((
+            RigidBody::KinematicPositionBased,
+            Collider::cuboid(0.25, 0.25, 0.25),
+            CleanupMarker,
+            ColliderMassProperties::Density(2.0),
+            KinematicCharacterController {
+                translation: Some(Vec3::new(0.0, 0.5, 0.0)),
+                offset: CharacterLength::Absolute(0.01),
+                autostep: Some(CharacterAutostep {
+                    max_height: CharacterLength::Absolute(1.0),
+                    min_width: CharacterLength::Absolute(0.05),
+                    include_dynamic_bodies: true,
+                }),
+                ..default()
+            },
+           Velocity::default(),
+//        LockedAxes::ROTATION_LOCKED_X | LockedAxes::ROTATION_LOCKED_Z | LockedAxes::ROTATION_LOCKED_Y,
+        player::PlayerBundle::new(),
+        PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::Cube { size: 0.5 })),
+            material: materials.add(Color::hex(PLAYER_COLOR).unwrap().into()),
+            transform: Transform::from_xyz(0.0, 0.5, 0.0),
+            ..default()
+        }
+    ));
+        
+    commands.insert_resource(AmbientLight {
+        color: Color::WHITE,
+        brightness: 0.50,
+    });
+
+    commands.spawn((Camera3dBundle {
+        transform: Transform::from_xyz(-1.8, 1.0, 0.0).looking_at(Vec3::new(8.0, 0.0, 0.0), Vec3::Y),
+        ..default()
+    },
+    CleanupMarker,
+    ComputedVisibility::default(),
+    Visibility::Visible,
+    ));
+
+    commands.spawn(DirectionalLightBundle {
+        transform: Transform::from_rotation(Quat::from_axis_angle(Vec3::new(-0.8263363, -0.53950554, -0.16156079), 2.465743)),
+        directional_light: DirectionalLight {
+            // Configure the projection to better fit the scene
+//            illuminance: 10000.0,
+            illuminance: 100000.0,
+            shadows_enabled: false,
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+}
+
 
 fn reset_level(
 ) {

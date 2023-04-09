@@ -14,7 +14,7 @@ opt-level = 3
 
 [dependencies]
 bevy = { version = "0.10.1" }
-bevy_kira_audio = "0.15"
+bevy_kira_audio = { version = "0.15.0", features = ["wav"]}
 bevy_rapier3d = { version = "0.21", features = ["debug-render"] }
 leafwing-input-manager = { version = "0.9" }
 rand = "0.8"
