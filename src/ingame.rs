@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
+use bevy::gltf::Gltf;
 use crate::{
     direction,
     player,
@@ -40,6 +41,7 @@ impl Plugin for InGamePlugin {
             .add_systems((
                     player::handle_input, 
                     player::move_player,
+                    player::spin_mesh,
                     floor::update_floors,
                     game_camera::follow_player,
                     floor::shift_floors,
@@ -58,6 +60,8 @@ pub fn load(
     assets_handler.add_audio(&mut game_assets.collect, "audio/collect.wav");
     assets_handler.add_audio(&mut game_assets.jump, "audio/jump.wav");
     assets_handler.add_audio(&mut game_assets.game_over, "audio/game_over.wav");
+    assets_handler.add_audio(&mut game_assets.game_over, "audio/game_over.wav");
+    assets_handler.add_glb(&mut game_assets.TJ, "models/tj.glb");
 }
 
 fn setup(
@@ -67,35 +71,43 @@ fn setup(
     mut floor_manager: ResMut<floor::FloorManager>,
     mut clear_color: ResMut<ClearColor>,
     mut food_spawn_event_writer: EventWriter<food::SpawnFoodEvent>,
+    asset_server: Res<AssetServer>,
+    game_assets: Res<assets::GameAssets>,
+    assets_gltf: Res<Assets<Gltf>>,
 ) {
     clear_color.0 = Color::hex(BACKGROUND_COLOR).unwrap();
     floor::setup_floor(&mut commands, &mut meshes, &mut materials, &mut floor_manager, &mut food_spawn_event_writer);
-    commands
-        .spawn((
-            RigidBody::KinematicPositionBased,
-            Collider::cuboid(0.25, 0.25, 0.25),
-            CleanupMarker,
-            ColliderMassProperties::Density(2.0),
-            KinematicCharacterController {
-                translation: Some(Vec3::new(0.0, 0.5, 0.0)),
-                offset: CharacterLength::Absolute(0.01),
-                autostep: Some(CharacterAutostep {
-                    max_height: CharacterLength::Absolute(1.0),
-                    min_width: CharacterLength::Absolute(0.05),
-                    include_dynamic_bodies: true,
-                }),
+
+    if let Some(gltf) = assets_gltf.get(&game_assets.TJ) {
+        commands
+            .spawn((
+                RigidBody::KinematicPositionBased,
+                Collider::cuboid(0.25, 0.25, 0.25),
+                CleanupMarker,
+                ColliderMassProperties::Density(2.0),
+                KinematicCharacterController {
+                    translation: Some(Vec3::new(0.0, 0.5, 0.0)),
+                    offset: CharacterLength::Absolute(0.01),
+                    autostep: Some(CharacterAutostep {
+                        max_height: CharacterLength::Absolute(1.0),
+                        min_width: CharacterLength::Absolute(0.05),
+                        include_dynamic_bodies: true,
+                    }),
+                    ..default()
+                },
+               Velocity::default(),
+    //        LockedAxes::ROTATION_LOCKED_X | LockedAxes::ROTATION_LOCKED_Z | LockedAxes::ROTATION_LOCKED_Y,
+            ComputedVisibility::default(),
+            Visibility::Visible,
+            TransformBundle {
+                local: Transform::from_xyz(0.0, 0.5, 0.0),
                 ..default()
             },
-           Velocity::default(),
-//        LockedAxes::ROTATION_LOCKED_X | LockedAxes::ROTATION_LOCKED_Z | LockedAxes::ROTATION_LOCKED_Y,
-        player::PlayerBundle::new(),
-        PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Cube { size: 0.5 })),
-            material: materials.add(Color::hex(PLAYER_COLOR).unwrap().into()),
-            transform: Transform::from_xyz(0.0, 0.5, 0.0),
-            ..default()
-        }
-    ));
+            player::PlayerBundle::new(),
+        )).with_children(|parent| {
+            parent.spawn((SceneBundle { scene: gltf.scenes[0].clone(), ..default() }, player::InnerMesh));
+        });
+    }
         
     commands.insert_resource(AmbientLight {
         color: Color::WHITE,

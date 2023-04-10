@@ -78,7 +78,6 @@ fn update_game_over(
         return;
     }
 
-    println!("Done");
     game_over_state.timer = COUNTDOWN;
     let (player, player_transform) = players.single();
     let final_score = (floor_manager.score * player.donut_count.max(1)) as f32

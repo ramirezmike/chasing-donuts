@@ -82,8 +82,8 @@ fn bootstrap(
     audio.set_volume();
     clear_color.0 = Color::hex("aaaaaa").unwrap();
 
-    assets_handler.load(AppState::Splash, &mut game_assets);
-    //assets_handler.load(AppState::InGame, &mut game_assets);
+    //assets_handler.load(AppState::Splash, &mut game_assets);
+    assets_handler.load(AppState::InGame, &mut game_assets);
 }
 
 pub trait ZeroSignum {

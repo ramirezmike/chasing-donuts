@@ -17,7 +17,7 @@ static GROUND_SPEED: f32 = 20.0;
 static NUMBER_OF_LIVE_ROWS: i32 = 100;
 static NUMBER_OF_ROWS: i32 = 200;
 static NUMBER_OF_COLUMNS: i32 = 30;
-static DISTANCE_INCREASE: f32 = 2.1;
+static DISTANCE_INCREASE: f32 = 0.1;
 
 
 pub struct FloorPlugin;
@@ -34,9 +34,11 @@ pub struct FloorManager {
     pub title_screen_cooldown: f32,
     pub score: usize,
     floor_rows: VecDeque::<FloorRow>,
+    actual_lowest: f32,
     lowest: f32,
     highest: f32,
     cube_mesh: Handle<Mesh>,
+    floor_spawn_cutoff: f32,
 }
 
 impl FloorManager {
@@ -51,6 +53,10 @@ impl FloorManager {
 
     pub fn current_level_heights(&self) -> (f32, f32) {
         (self.lowest * FLOOR_CUBE_SIZE, self.highest * FLOOR_CUBE_SIZE)
+    }
+
+    pub fn get_actual_lowest(&self) -> f32 {
+        self.actual_lowest * FLOOR_CUBE_SIZE
     }
 }
 
@@ -108,13 +114,16 @@ pub fn update_floors(
     mut floors: Query<(Entity, &mut Floor, &Transform, &Children)>,
     players: Query<(&Transform, &Velocity, &player::Player), Without<Floor>>,
     mut transforms: Query<&mut Transform, (Without<player::Player>, Without<Floor>)>,
+    mut floor_manager: ResMut<FloorManager>,
 ) {
     for (p, p_velocity, player) in &players {
         if p_velocity.linvel.x < player.speed * 0.1 {
             return;
         }
 
+        let mut actual_lowest = floor_manager.highest;
         for (entity, mut floor, transform, children) in &mut floors {
+            actual_lowest = actual_lowest.min(floor.height);
             let player_translation = Vec3::new(p.translation.x, 0.0, p.translation.z);
             let floor_translation = Vec3::new(transform.translation.x, 0.0, transform.translation.z);
             let distance = (floor_translation - player_translation).length();
@@ -139,6 +148,8 @@ pub fn update_floors(
                 }
             }
         }
+
+        floor_manager.actual_lowest = actual_lowest;
     }
 }
 
@@ -194,6 +205,8 @@ fn spawn_floors(
                     food_spawn_event_writer.send(food::SpawnFoodEvent);
                     floor_manager.lowest = f32::MAX;
                     floor_manager.highest = f32::MIN;
+                    floor_manager.floor_spawn_cutoff += DISTANCE_INCREASE + (FLOOR_CUBE_SIZE * 2.0);
+                    println!("{} {} {}", floor_manager.actual_lowest, floor_manager.lowest, floor_manager.floor_spawn_cutoff);
                 }
             }
 
@@ -202,11 +215,10 @@ fn spawn_floors(
                 floor_manager.lowest = floor_manager.lowest.min(block.height);
                 floor_manager.highest = floor_manager.highest.max(block.height);
 
-//              println!("{} {}", block.height, floor_manager.lowest);
-//              if block.height < floor_manager.lowest {
-//                  // skipping because it's too low
-//                  continue;
-//              }
+                if block.height <= floor_manager.floor_spawn_cutoff {
+                    // skipping because it's too low
+                    continue;
+                }
                 
                 let color_x = random_number();//* block.height;
                 block.color.set_g(block.color.g() - (color_x * 0.1));

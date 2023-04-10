@@ -24,6 +24,9 @@ impl Plugin for PlayerPlugin {
 }
 
 #[derive(Component, Reflect, Default)]
+pub struct InnerMesh;
+
+#[derive(Component, Reflect, Default)]
 #[reflect(Component)]
 pub struct Player {
     pub speed: f32,
@@ -34,6 +37,7 @@ pub struct Player {
     pub state: PlayerState,
     pub death_timer: Option<f32>,
     pub donut_count: usize,
+    pub jump_cooldown: f32,
 }
 
 impl Player {
@@ -49,6 +53,7 @@ impl Player {
             state: PlayerState::Normal,
             death_timer: None,
             donut_count: 0,
+            jump_cooldown: 0.0,
         }
     }
 }
@@ -214,9 +219,10 @@ pub fn move_player(
             player.death_timer = None;
         }
 
-        let (lowest, _) = floor_manager.current_level_heights(); 
-        if transform.translation.y < lowest - 1.0 {
-            println!(" {} {}", transform.translation.y, lowest);
+        transform.rotate_z(time.delta_seconds());
+
+        let lowest = floor_manager.get_actual_lowest(); 
+        if transform.translation.y < lowest - 3.0 {
             game_over_event_writer.send(game_over::GameOverEvent);
         }
 
@@ -228,6 +234,12 @@ pub fn move_player(
         player.velocity *= friction.powf(time.delta_seconds());
         player.velocity += (Vec3::X * speed) * time.delta_seconds();
 
+        if controller_output.grounded {
+            player.jump_cooldown = player.jump_cooldown.max(0.2);
+        }
+        player.jump_cooldown -= time.delta_seconds();
+        player.jump_cooldown = player.jump_cooldown.clamp(-3.0, 3.0);
+
         if let Some(move_event) = move_events.get(&entity) {
             match move_event.movement {
                 Movement::Normal(direction) => {
@@ -238,8 +250,9 @@ pub fn move_player(
                     player.velocity += (acceleration * speed) * time.delta_seconds();
                 },
                 Movement::Jump => {
-                    if controller_output.grounded {
+                    if player.jump_cooldown > 0.0 {
                         println!("JUMP");
+                        player.jump_cooldown = 0.0;
                         audio.play_sfx(&game_assets.jump);
                         player.velocity += Vec3::new(0.0, 300.0, 0.0) * time.delta_seconds();
                         gravity = Vec3::ZERO;
@@ -275,3 +288,18 @@ pub fn move_player(
         }
     }
 }
+
+pub fn spin_mesh( 
+    player: Query<(&Velocity, &Player)>,
+    time: Res<Time>,
+    mut inner_mesh: Query<&mut Transform, With<InnerMesh>>,
+) {
+    for (v, player) in &player {
+        if v.linvel.x > player.speed * 0.1 {
+            for mut i in &mut inner_mesh {
+                i.rotate_z(time.delta_seconds() * player.speed);
+            }
+        }
+    }
+}
+

@@ -50,7 +50,8 @@ pub fn spawn_food(
 ) {
     for _ in event_reader.iter() {
         let (closest_left, farthest_right) = floor_manager.current_level_size();
-        let x = random_in_f32_range(closest_left.x, farthest_right.x);
+        let last_quarter = closest_left.x + ((farthest_right.x - closest_left.x) * 0.75);
+        let x = random_in_f32_range(last_quarter, farthest_right.x);
         let z = random_in_f32_range(closest_left.y, farthest_right.y);
         let (_, highest) = floor_manager.current_level_heights();
 
@@ -69,7 +70,7 @@ pub fn spawn_food(
                     )),
                     material: materials.add(Color::hex(FOOD_COLOR).unwrap().into()),
                     transform: {
-                        let mut t = Transform::from_xyz(x, highest + 0.5, z);
+                        let mut t = Transform::from_xyz(x, (highest * 0.75) + 0.5, z);
                         t.rotate_z(TAU * 0.25);
                         t
                     },
